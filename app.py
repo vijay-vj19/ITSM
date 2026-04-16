@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import os
 import sys
+import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -22,6 +23,15 @@ import actions
 from nemoguardrails import LLMRails, RailsConfig
 
 
+def _ensure_event_loop():
+    """Ensure the current thread has an active asyncio event loop."""
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+
 def init():
     """Initialise guardrails, OpenAI client, and RAG embeddings. Returns (rails, client, chunks, embeddings)."""
     load_dotenv(BASE_DIR / ".env", override=True)
@@ -29,6 +39,7 @@ def init():
     os.environ["OPENAI_API_KEY"] = api_key
 
     config = RailsConfig.from_path(str(CONFIG_DIR))
+    _ensure_event_loop()
     rails = LLMRails(config)
     rails.register_action(actions.mask_pii, name="mask_pii")
     rails.register_action(actions.remove_sensitive_org_data, name="remove_sensitive_org_data")
