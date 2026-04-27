@@ -82,7 +82,8 @@ def _prepare_uploaded_df(uploaded_file):
     for col in uploaded_df.select_dtypes(include=["datetime64[ns]", "datetimetz"]):
         uploaded_df[col] = uploaded_df[col].dt.strftime("%Y-%m-%d")
     # Uploaded priority is ignored; the app will always assign priority using AI.
-    uploaded_df = uploaded_df.drop(columns=["Priority"], errors="ignore")
+    priority_columns = [c for c in uploaded_df.columns if str(c).strip().lower() == "priority"]
+    uploaded_df = uploaded_df.drop(columns=priority_columns, errors="ignore")
     return uploaded_df
 
 
