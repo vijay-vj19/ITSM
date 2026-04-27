@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import asyncio
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -73,6 +74,49 @@ def load_tickets():
 def cosine_similarity(a, b):
     a, b = np.array(a), np.array(b)
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+def _extract_priority_label(text):
+    """Extract and normalize a priority label from model output."""
+    if not text:
+        return None
+    match = re.search(r"\bP\s*([1-4])\b", str(text), flags=re.IGNORECASE)
+    if not match:
+        return None
+    level = match.group(1)
+    labels = {
+        "1": "P1 - Critical",
+        "2": "P2 - High",
+        "3": "P3 - Medium",
+        "4": "P4 - Low",
+    }
+    return labels.get(level)
+
+
+def prioritize_ticket(ticket_dict, rails):
+    """Use LLM to classify ticket priority as one of P1/P2/P3/P4."""
+    title = ticket_dict.get("Title", "")
+    description = ticket_dict.get("Description", "")
+    user_message = json.dumps({"Title": title, "Description": description}, ensure_ascii=False)
+
+    system_message = (
+        "You are an ITSM triage assistant. "
+        "Classify ticket priority using business impact and urgency. "
+        "Respond with exactly one label from this list only: "
+        "P1 - Critical, P2 - High, P3 - Medium, P4 - Low."
+    )
+    response = rails.generate(messages=[
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": user_message},
+    ])
+
+    raw_text = response.get("content", "")
+    parsed = _extract_priority_label(raw_text)
+    if parsed is not None:
+        return parsed
+
+    # Safe default when output is malformed.
+    return "P3 - Medium"
 
 
 def analyse_ticket(ticket_dict, rails, client, chunks, embeddings):

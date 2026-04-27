@@ -11,7 +11,7 @@ st.set_page_config(page_title="ITSM Ticket Assistant", page_icon="🛠️", layo
 # Import all logic from app.py
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
-from app import init as _init, load_tickets as _load_tickets, analyse_ticket
+from app import init as _init, load_tickets as _load_tickets, analyse_ticket, prioritize_ticket
 
 # Wrap with Streamlit cache so they only run once per session
 init = st.cache_resource(show_spinner="Loading AI models…")(_init)
@@ -136,17 +136,13 @@ with tab2:
         "Network & Connectivity", "Hardware & Peripherals", "Software & Applications",
         "Email & Communication", "Security & Access", "IT Service Request", "Other"
     ]
-    priorities = ["P1 - Critical", "P2 - High", "P3 - Medium", "P4 - Low"]
-
     with st.form("new_ticket_form"):
         col1, col2 = st.columns(2)
         name = col1.text_input("Full Name *")
         email = col2.text_input("Email Address *")
         title = st.text_input("Issue Title *")
         description = st.text_area("Description *", height=150)
-        col3, col4 = st.columns(2)
-        category = col3.selectbox("Category", categories)
-        priority = col4.selectbox("Priority", priorities)
+        category = st.selectbox("Category", categories)
         submitted = st.form_submit_button("Submit Ticket")
 
     if submitted:
@@ -161,11 +157,14 @@ with tab2:
                 "Title": title,
                 "Description": description,
                 "Category": category,
-                "Priority": priority,
                 "Raised On": datetime.date.today().isoformat(),
             }
 
+            with st.spinner("Assigning priority with AI…"):
+                new_ticket["Priority"] = prioritize_ticket(new_ticket, rails)
+
             st.success(f"Ticket **{new_ticket['Ticket ID']}** submitted!")
+            st.info(f"AI-assigned Priority: **{new_ticket['Priority']}**")
 
             with st.expander("Your Ticket", expanded=False):
                 for key, value in new_ticket.items():
@@ -204,6 +203,11 @@ with tab3:
         selected_ticket = uploaded_df.iloc[selected_row_index].to_dict()
 
         if st.button("🤖 Analyse Uploaded Ticket", key="analyse_uploaded"):
+            if not str(selected_ticket.get("Priority", "")).strip() or str(selected_ticket.get("Priority", "")).lower() == "nan":
+                with st.spinner("Assigning priority with AI…"):
+                    selected_ticket["Priority"] = prioritize_ticket(selected_ticket, rails)
+                st.info(f"AI-assigned Priority: **{selected_ticket['Priority']}**")
+
             with st.spinner("Analysing uploaded ticket…"):
                 result = analyse_ticket(selected_ticket, rails, client, chunks, embeddings)
             st.success("Analysis complete")
