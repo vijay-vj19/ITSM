@@ -81,6 +81,8 @@ def _prepare_uploaded_df(uploaded_file):
     uploaded_df = pd.read_excel(uploaded_file)
     for col in uploaded_df.select_dtypes(include=["datetime64[ns]", "datetimetz"]):
         uploaded_df[col] = uploaded_df[col].dt.strftime("%Y-%m-%d")
+    # Uploaded priority is ignored; the app will always assign priority using AI.
+    uploaded_df = uploaded_df.drop(columns=["Priority"], errors="ignore")
     return uploaded_df
 
 
@@ -203,10 +205,9 @@ with tab3:
         selected_ticket = uploaded_df.iloc[selected_row_index].to_dict()
 
         if st.button("🤖 Analyse Uploaded Ticket", key="analyse_uploaded"):
-            if not str(selected_ticket.get("Priority", "")).strip() or str(selected_ticket.get("Priority", "")).lower() == "nan":
-                with st.spinner("Assigning priority with AI…"):
-                    selected_ticket["Priority"] = prioritize_ticket(selected_ticket, rails)
-                st.info(f"AI-assigned Priority: **{selected_ticket['Priority']}**")
+            with st.spinner("Assigning priority with AI…"):
+                selected_ticket["Priority"] = prioritize_ticket(selected_ticket, rails)
+            st.info(f"AI-assigned Priority: **{selected_ticket['Priority']}**")
 
             with st.spinner("Analysing uploaded ticket…"):
                 result = analyse_ticket(selected_ticket, rails, client, chunks, embeddings)
