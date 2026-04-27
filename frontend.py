@@ -3,6 +3,7 @@ import datetime
 import json
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 st.set_page_config(page_title="ITSM Ticket Assistant", page_icon="🛠️", layout="wide")
@@ -75,13 +76,21 @@ def render_ai_response(result):
     st.write(result)
 
 
+def _prepare_uploaded_df(uploaded_file):
+    """Read uploaded Excel and normalize datetime fields for display/analysis."""
+    uploaded_df = pd.read_excel(uploaded_file)
+    for col in uploaded_df.select_dtypes(include=["datetime64[ns]", "datetimetz"]):
+        uploaded_df[col] = uploaded_df[col].dt.strftime("%Y-%m-%d")
+    return uploaded_df
+
+
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
 df = load_tickets()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2 = st.tabs(["📋 Existing Tickets", "➕ Submit New Ticket"])
+tab1, tab2, tab3 = st.tabs(["📋 Existing Tickets", "➕ Submit New Ticket", "📥 Upload Excel"])
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 1 – Existing Tickets
@@ -164,4 +173,38 @@ with tab2:
 
             with st.spinner("Generating AI response…"):
                 result = analyse_ticket(new_ticket, rails, client, chunks, embeddings)
+            render_ai_response(result)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 3 – Upload Excel and Analyse
+# ─────────────────────────────────────────────────────────────────────────────
+with tab3:
+    st.subheader("Upload Ticket Excel File")
+    st.caption("Upload an .xlsx/.xls file and run AI analysis on any ticket row.")
+
+    uploaded_file = st.file_uploader("Add Excel File", type=["xlsx", "xls"])
+
+    if uploaded_file is not None:
+        try:
+            uploaded_df = _prepare_uploaded_df(uploaded_file)
+        except Exception as exc:
+            st.error(f"Could not read the file: {exc}")
+            st.stop()
+
+        if uploaded_df.empty:
+            st.warning("The uploaded file has no rows.")
+            st.stop()
+
+        st.success("File uploaded successfully")
+        st.dataframe(uploaded_df, use_container_width=True, hide_index=True)
+
+        row_options = [f"Row {i + 1}" for i in range(len(uploaded_df))]
+        selected_row_label = st.selectbox("Select row to analyse", row_options)
+        selected_row_index = int(selected_row_label.split()[1]) - 1
+        selected_ticket = uploaded_df.iloc[selected_row_index].to_dict()
+
+        if st.button("🤖 Analyse Uploaded Ticket", key="analyse_uploaded"):
+            with st.spinner("Analysing uploaded ticket…"):
+                result = analyse_ticket(selected_ticket, rails, client, chunks, embeddings)
+            st.success("Analysis complete")
             render_ai_response(result)
