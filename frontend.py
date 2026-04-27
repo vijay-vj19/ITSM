@@ -5,6 +5,8 @@ from pathlib import Path
 
 import streamlit as st
 
+st.set_page_config(page_title="ITSM Ticket Assistant", page_icon="🛠️", layout="wide")
+
 # Import all logic from app.py
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
@@ -13,6 +15,9 @@ from app import init as _init, load_tickets as _load_tickets, analyse_ticket
 # Wrap with Streamlit cache so they only run once per session
 init = st.cache_resource(show_spinner="Loading AI models…")(_init)
 load_tickets = st.cache_data(show_spinner="Loading tickets…")(_load_tickets)
+
+st.title("ITSM Ticket Assistant")
+st.caption("AI-powered ticket analysis and guided resolution")
 
 
 def render_ai_response(result):
