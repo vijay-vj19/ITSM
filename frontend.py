@@ -4,6 +4,7 @@ import json
 import random
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -235,36 +236,48 @@ st.caption("Demo dashboard uses generated mock data for presentation only.")
 
 chart_col1, chart_col2 = st.columns(2)
 with chart_col1:
-    st.markdown("#### KPI Distribution")
-    kpi_chart_df = pd.DataFrame({
-        "KPI": [
-            "Redundant",
-            "Insufficient",
-            "Sufficient+Follow-up",
-            "Unassigned",
-            "Reopened",
-        ],
-        "Count": [
-            kpis["redundant"],
-            kpis["insufficient"],
-            kpis["sufficient_followup"],
-            kpis["unassigned"],
-            kpis["reopened"],
-        ],
-    }).set_index("KPI")
-    st.bar_chart(kpi_chart_df)
+    st.markdown("#### Ticket Quality Mix")
+    kpi_chart_df = pd.DataFrame([
+        {"KPI": "Redundant", "Count": kpis["redundant"], "Color": "#E4572E"},
+        {"KPI": "Insufficient Info", "Count": kpis["insufficient"], "Color": "#F3A712"},
+        {"KPI": "Needs Follow-up", "Count": kpis["sufficient_followup"], "Color": "#4C78A8"},
+        {"KPI": "Unassigned", "Count": kpis["unassigned"], "Color": "#7A5195"},
+        {"KPI": "Reopened", "Count": kpis["reopened"], "Color": "#D45087"},
+    ])
+
+    quality_donut = alt.Chart(kpi_chart_df).mark_arc(innerRadius=70).encode(
+        theta=alt.Theta(field="Count", type="quantitative"),
+        color=alt.Color(field="KPI", type="nominal", scale=alt.Scale(domain=kpi_chart_df["KPI"].tolist(), range=kpi_chart_df["Color"].tolist()), legend=alt.Legend(title="KPI Type")),
+        tooltip=["KPI", "Count"],
+    ).properties(height=320)
+    st.altair_chart(quality_donut, use_container_width=True)
 
 with chart_col2:
-    st.markdown("#### Tickets by Category")
-    category_chart_df = df["Category"].value_counts().rename_axis("Category").to_frame("Count")
-    st.bar_chart(category_chart_df)
+    st.markdown("#### Ticket Volume by Category")
+    category_chart_df = df["Category"].value_counts().rename_axis("Category").reset_index(name="Count")
+    category_bar = alt.Chart(category_chart_df).mark_bar(cornerRadiusEnd=4).encode(
+        y=alt.Y("Category:N", sort="-x", title="Category"),
+        x=alt.X("Count:Q", title="Number of Tickets"),
+        color=alt.Color("Count:Q", scale=alt.Scale(scheme="tealblues"), legend=None),
+        tooltip=["Category", "Count"],
+    ).properties(height=320)
+    st.altair_chart(category_bar, use_container_width=True)
 
-st.markdown("#### 30-Day Ticket Trend")
+st.markdown("#### Daily Ticket Trend (Last 30 Days)")
 trend_df = (
     df.groupby("Raised On").size().rename("Tickets").reset_index().sort_values("Raised On")
 )
-trend_df = trend_df.set_index("Raised On")
-st.line_chart(trend_df)
+trend_df["Raised On"] = pd.to_datetime(trend_df["Raised On"])
+trend_area = alt.Chart(trend_df).mark_area(opacity=0.35, color="#2A9D8F").encode(
+    x=alt.X("Raised On:T", title="Date"),
+    y=alt.Y("Tickets:Q", title="Tickets Raised"),
+    tooltip=[alt.Tooltip("Raised On:T", title="Date"), alt.Tooltip("Tickets:Q", title="Tickets")],
+)
+trend_line = alt.Chart(trend_df).mark_line(color="#0B6E4F", strokeWidth=3).encode(
+    x="Raised On:T",
+    y="Tickets:Q",
+)
+st.altair_chart((trend_area + trend_line).properties(height=300), use_container_width=True)
 st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
