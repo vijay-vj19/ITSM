@@ -1,6 +1,7 @@
 import sys
 import datetime
 import json
+import random
 from pathlib import Path
 
 import pandas as pd
@@ -11,11 +12,10 @@ st.set_page_config(page_title="ITSM Ticket Assistant", page_icon="🛠️", layo
 # Import all logic from app.py
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
-from app import init as _init, load_tickets as _load_tickets, analyse_ticket, prioritize_ticket
+from app import init as _init, analyse_ticket, prioritize_ticket
 
 # Wrap with Streamlit cache so they only run once per session
 init = st.cache_resource(show_spinner="Loading AI models…")(_init)
-load_tickets = st.cache_data(show_spinner="Loading tickets…")(_load_tickets)
 
 st.title("ITSM Ticket Assistant")
 st.caption("AI-powered ticket analysis and guided resolution")
@@ -173,13 +173,56 @@ def _compute_ticket_kpis(df):
     }
 
 
+@st.cache_data(show_spinner=False)
+def _build_mock_dashboard_df(rows=120):
+    """Create mock tickets for demo dashboard visuals and KPIs."""
+    categories = [
+        "Network & Connectivity", "Hardware & Peripherals", "Software & Applications",
+        "Email & Communication", "Security & Access", "IT Service Request", "Other"
+    ]
+    statuses = ["Open", "In Progress", "Resolved", "Reopened"]
+    priorities = ["P1 - Critical", "P2 - High", "P3 - Medium", "P4 - Low"]
+
+    today = datetime.date.today()
+    data = []
+    for i in range(rows):
+        opened_on = today - datetime.timedelta(days=random.randint(0, 29))
+        status = random.choices(statuses, weights=[0.35, 0.3, 0.25, 0.1], k=1)[0]
+        is_redundant = random.random() < 0.12
+        is_insufficient = random.random() < 0.2
+        needs_followup = random.random() < 0.28
+        is_unassigned = random.random() < 0.16
+        is_reopened = status == "Reopened" or random.random() < 0.08
+
+        data.append({
+            "Ticket ID": f"MOCK-{1000 + i}",
+            "Category": random.choice(categories),
+            "Status": status,
+            "Priority": random.choice(priorities),
+            "Raised On": opened_on.isoformat(),
+            "is_redundant": is_redundant,
+            "is_insufficient": is_insufficient,
+            "needs_followup": needs_followup,
+            "is_unassigned": is_unassigned,
+            "is_reopened": is_reopened,
+        })
+
+    return pd.DataFrame(data)
+
+
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
-df = load_tickets()
+df = _build_mock_dashboard_df()
 
 # ── KPI Snapshot ──────────────────────────────────────────────────────────────
-kpis = _compute_ticket_kpis(df)
+kpis = {
+    "redundant": int(df["is_redundant"].sum()),
+    "insufficient": int(df["is_insufficient"].sum()),
+    "sufficient_followup": int(((~df["is_insufficient"]) & df["needs_followup"]).sum()),
+    "unassigned": int(df["is_unassigned"].sum()),
+    "reopened": int(df["is_reopened"].sum()),
+}
 st.subheader("KPI Snapshot")
 k1, k2, k3, k4, k5 = st.columns(5)
 k1.metric("Redundant Tickets", kpis["redundant"])
@@ -187,6 +230,41 @@ k2.metric("Insufficient Information", kpis["insufficient"])
 k3.metric("Sufficient but Needs Follow-up", kpis["sufficient_followup"])
 k4.metric("Unassigned Tickets", kpis["unassigned"])
 k5.metric("Reopened Tickets", kpis["reopened"])
+
+st.caption("Demo dashboard uses generated mock data for presentation only.")
+
+chart_col1, chart_col2 = st.columns(2)
+with chart_col1:
+    st.markdown("#### KPI Distribution")
+    kpi_chart_df = pd.DataFrame({
+        "KPI": [
+            "Redundant",
+            "Insufficient",
+            "Sufficient+Follow-up",
+            "Unassigned",
+            "Reopened",
+        ],
+        "Count": [
+            kpis["redundant"],
+            kpis["insufficient"],
+            kpis["sufficient_followup"],
+            kpis["unassigned"],
+            kpis["reopened"],
+        ],
+    }).set_index("KPI")
+    st.bar_chart(kpi_chart_df)
+
+with chart_col2:
+    st.markdown("#### Tickets by Category")
+    category_chart_df = df["Category"].value_counts().rename_axis("Category").to_frame("Count")
+    st.bar_chart(category_chart_df)
+
+st.markdown("#### 30-Day Ticket Trend")
+trend_df = (
+    df.groupby("Raised On").size().rename("Tickets").reset_index().sort_values("Raised On")
+)
+trend_df = trend_df.set_index("Raised On")
+st.line_chart(trend_df)
 st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
