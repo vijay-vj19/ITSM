@@ -357,13 +357,16 @@ with tab3:
 
         selected_rows = table_event.selection.rows if table_event else []
         if not selected_rows:
-            st.info("Select any row from the table to trigger AI analysis.")
+            st.info("Select any row from the table, then click Start AI Analysis.")
             st.stop()
 
         selected_row_index = int(selected_rows[0])
         analysis_key = f"{file_token}:{selected_row_index}"
+        st.caption(f"Selected row: {selected_row_index + 1}")
 
-        if st.session_state.get("last_uploaded_analysis_key") != analysis_key:
+        run_analysis = st.button("Start AI Analysis", key="analyse_uploaded_selected")
+
+        if run_analysis:
             selected_ticket = uploaded_df.iloc[selected_row_index].to_dict()
 
             with st.spinner("Assigning priority with AI…"):
@@ -376,6 +379,9 @@ with tab3:
             st.session_state["last_uploaded_analysis_result"] = result
             st.session_state["last_uploaded_priority"] = selected_ticket["Priority"]
 
-        st.success(f"Analysis complete for selected row {selected_row_index + 1}")
-        st.info(f"AI-assigned Priority: **{st.session_state.get('last_uploaded_priority', 'P3 - Medium')}**")
-        render_ai_response(st.session_state.get("last_uploaded_analysis_result"))
+        if st.session_state.get("last_uploaded_analysis_key") == analysis_key and st.session_state.get("last_uploaded_analysis_result") is not None:
+            st.success(f"Analysis complete for selected row {selected_row_index + 1}")
+            st.info(f"AI-assigned Priority: **{st.session_state.get('last_uploaded_priority', 'P3 - Medium')}**")
+            render_ai_response(st.session_state.get("last_uploaded_analysis_result"))
+        else:
+            st.info("Click Start AI Analysis to generate results for the selected row.")
