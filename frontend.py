@@ -323,7 +323,7 @@ with tab2:
 # ─────────────────────────────────────────────────────────────────────────────
 with tab3:
     st.subheader("Upload Ticket Excel File")
-    st.caption("Upload an .xlsx/.xls file and run AI analysis on any ticket row.")
+    st.caption("Upload an .xlsx/.xls file, then click a row in the preview table to run AI analysis.")
 
     uploaded_file = st.file_uploader("Add Excel File", type=["xlsx", "xls"])
 
@@ -338,20 +338,44 @@ with tab3:
             st.warning("The uploaded file has no rows.")
             st.stop()
 
+        file_token = f"{uploaded_file.name}:{uploaded_file.size}"
+        if st.session_state.get("uploaded_file_token") != file_token:
+            st.session_state["uploaded_file_token"] = file_token
+            st.session_state["last_uploaded_analysis_key"] = None
+            st.session_state["last_uploaded_analysis_result"] = None
+            st.session_state["last_uploaded_priority"] = None
+
         st.success("File uploaded successfully")
-        st.dataframe(uploaded_df, use_container_width=True, hide_index=True)
+        table_event = st.dataframe(
+            uploaded_df.reset_index(drop=True),
+            use_container_width=True,
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="uploaded_ticket_table",
+        )
 
-        row_options = [f"Row {i + 1}" for i in range(len(uploaded_df))]
-        selected_row_label = st.selectbox("Select row to analyse", row_options)
-        selected_row_index = int(selected_row_label.split()[1]) - 1
-        selected_ticket = uploaded_df.iloc[selected_row_index].to_dict()
+        selected_rows = table_event.selection.rows if table_event else []
+        if not selected_rows:
+            st.info("Select any row from the table to trigger AI analysis.")
+            st.stop()
 
-        if st.button("🤖 Analyse Uploaded Ticket", key="analyse_uploaded"):
+        selected_row_index = int(selected_rows[0])
+        analysis_key = f"{file_token}:{selected_row_index}"
+
+        if st.session_state.get("last_uploaded_analysis_key") != analysis_key:
+            selected_ticket = uploaded_df.iloc[selected_row_index].to_dict()
+
             with st.spinner("Assigning priority with AI…"):
                 selected_ticket["Priority"] = prioritize_ticket(selected_ticket, rails)
-            st.info(f"AI-assigned Priority: **{selected_ticket['Priority']}**")
 
             with st.spinner("Analysing uploaded ticket…"):
                 result = analyse_ticket(selected_ticket, rails, client, chunks, embeddings)
-            st.success("Analysis complete")
-            render_ai_response(result)
+
+            st.session_state["last_uploaded_analysis_key"] = analysis_key
+            st.session_state["last_uploaded_analysis_result"] = result
+            st.session_state["last_uploaded_priority"] = selected_ticket["Priority"]
+
+        st.success(f"Analysis complete for selected row {selected_row_index + 1}")
+        st.info(f"AI-assigned Priority: **{st.session_state.get('last_uploaded_priority', 'P3 - Medium')}**")
+        render_ai_response(st.session_state.get("last_uploaded_analysis_result"))
