@@ -11,11 +11,10 @@ st.set_page_config(page_title="ITSM Ticket Assistant", page_icon="🛠️", layo
 # Import all logic from app.py
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
-from app import init as _init, load_tickets as _load_tickets, analyse_ticket, prioritize_ticket
+from app import init as _init, analyse_ticket, prioritize_ticket
 
 # Wrap with Streamlit cache so they only run once per session
 init = st.cache_resource(show_spinner="Loading AI models…")(_init)
-load_tickets = st.cache_data(show_spinner="Loading tickets…")(_load_tickets)
 
 st.title("ITSM Ticket Assistant")
 st.caption("AI-powered ticket analysis and guided resolution")
@@ -90,47 +89,12 @@ def _prepare_uploaded_df(uploaded_file):
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
-df = load_tickets()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["📋 Existing Tickets", "➕ Submit New Ticket", "📥 Upload Excel"])
+tab2, tab3 = st.tabs(["➕ Submit New Ticket", "📥 Upload Excel"])
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 1 – Existing Tickets
-# ─────────────────────────────────────────────────────────────────────────────
-with tab1:
-    st.subheader("Ticket List")
-
-    # Display columns (subset for readability)
-    display_cols = [c for c in ["Ticket ID", "Name", "Title", "Category", "Priority", "Status", "Raised On"] if c in df.columns]
-    st.dataframe(df[display_cols], use_container_width=True, hide_index=True)
-
-    st.divider()
-    st.subheader("Analyse a Ticket")
-
-    id_col = next((c for c in ["Ticket ID", "ID", "id"] if c in df.columns), df.columns[0])
-    ticket_ids = df[id_col].astype(str).tolist()
-    selected_id = st.selectbox("Select Ticket ID", ticket_ids)
-
-    selected_row = df[df[id_col].astype(str) == selected_id].iloc[0].to_dict()
-
-    with st.expander("Ticket Details", expanded=True):
-        col1, col2 = st.columns(2)
-        items = list(selected_row.items())
-        mid = len(items) // 2
-        for key, value in items[:mid]:
-            col1.markdown(f"**{key}:** {value}")
-        for key, value in items[mid:]:
-            col2.markdown(f"**{key}:** {value}")
-
-    if st.button("🤖 Run AI Analysis", key="analyse_existing"):
-        with st.spinner("Analysing ticket…"):
-            result = analyse_ticket(selected_row, rails, client, chunks, embeddings)
-        st.success("Analysis complete")
-        render_ai_response(result)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TAB 2 – Submit New Ticket
+# TAB 1 – Submit New Ticket
 # ─────────────────────────────────────────────────────────────────────────────
 with tab2:
     st.subheader("Submit a New Ticket")
@@ -178,7 +142,7 @@ with tab2:
             render_ai_response(result)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 3 – Upload Excel and Analyse
+# TAB 2 – Upload Excel and Analyse
 # ─────────────────────────────────────────────────────────────────────────────
 with tab3:
     st.subheader("Upload Ticket Excel File")
