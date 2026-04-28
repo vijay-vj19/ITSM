@@ -11,10 +11,11 @@ st.set_page_config(page_title="ITSM Ticket Assistant", page_icon="🛠️", layo
 # Import all logic from app.py
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
-from app import init as _init, analyse_ticket, prioritize_ticket
+from app import init as _init, load_tickets as _load_tickets, analyse_ticket, prioritize_ticket
 
 # Wrap with Streamlit cache so they only run once per session
 init = st.cache_resource(show_spinner="Loading AI models…")(_init)
+load_tickets = st.cache_data(show_spinner="Loading tickets…")(_load_tickets)
 
 st.title("ITSM Ticket Assistant")
 st.caption("AI-powered ticket analysis and guided resolution")
@@ -86,9 +87,107 @@ def _prepare_uploaded_df(uploaded_file):
     return uploaded_df
 
 
+def _find_column(df, candidates):
+    """Find first matching column by exact normalized name or token containment."""
+    norm_to_col = {str(c).strip().lower(): c for c in df.columns}
+    for candidate in candidates:
+        if candidate in norm_to_col:
+            return norm_to_col[candidate]
+
+    for col in df.columns:
+        low = str(col).strip().lower()
+        for candidate in candidates:
+            parts = candidate.split()
+            if all(part in low for part in parts):
+                return col
+    return None
+
+
+def _to_text_series(df, columns):
+    cols = [c for c in columns if c in df.columns]
+    if not cols:
+        return pd.Series([""] * len(df), index=df.index)
+    return df[cols].fillna("").astype(str).agg(" ".join, axis=1).str.lower()
+
+
+def _compute_ticket_kpis(df):
+    """Compute requested KPI counts using schema-tolerant rules."""
+    if df.empty:
+        return {
+            "redundant": 0,
+            "insufficient": 0,
+            "sufficient_followup": 0,
+            "unassigned": 0,
+            "reopened": 0,
+        }
+
+    title_col = _find_column(df, ["title", "issue title", "subject", "summary"])
+    desc_col = _find_column(df, ["description", "issue description", "details"])
+    status_col = _find_column(df, ["status", "state", "ticket status"])
+    assignee_col = _find_column(df, ["assignee", "assigned to", "owner", "agent"])
+    reopen_col = _find_column(df, ["reopen count", "reopened count", "times reopened"])
+    duplicate_col = _find_column(df, ["duplicate", "is duplicate", "redundant"])
+
+    status_text = _to_text_series(df, [status_col] if status_col else [])
+    followup_text = _to_text_series(df, [status_col, _find_column(df, ["remarks", "comments", "next action", "notes"])])
+
+    redundant_mask = pd.Series(False, index=df.index)
+    if title_col or desc_col:
+        keys = _to_text_series(df, [c for c in [title_col, desc_col] if c]).str.replace(r"\s+", " ", regex=True).str.strip()
+        redundant_mask = redundant_mask | keys.duplicated(keep="first")
+    redundant_mask = redundant_mask | status_text.str.contains(r"duplicate|duplicated|redundant", regex=True, na=False)
+    if duplicate_col:
+        dup_text = df[duplicate_col].fillna("").astype(str).str.strip().str.lower()
+        redundant_mask = redundant_mask | dup_text.str.contains(r"^1$|^true$|^yes$|^y$|duplicate|redundant", regex=True, na=False)
+
+    if desc_col:
+        desc_text = df[desc_col].fillna("").astype(str).str.strip().str.lower()
+        insufficient_mask = (
+            (desc_text.str.len() < 25)
+            | desc_text.str.contains(r"^na$|^n/a$|^none$|^unknown$|^not sure$|^help$", regex=True, na=False)
+        )
+    else:
+        insufficient_mask = pd.Series(False, index=df.index)
+    insufficient_mask = insufficient_mask | followup_text.str.contains(r"insufficient|missing info|need more info|incomplete", regex=True, na=False)
+
+    needs_followup_mask = followup_text.str.contains(r"follow[ -]?up|pending|waiting|awaiting", regex=True, na=False)
+    sufficient_followup_mask = (~insufficient_mask) & needs_followup_mask
+
+    if assignee_col:
+        assignee_text = df[assignee_col].fillna("").astype(str).str.strip().str.lower()
+        unassigned_mask = assignee_text.eq("") | assignee_text.str.contains(r"unassigned|none|na|n/a|tbd", regex=True, na=False)
+    else:
+        unassigned_mask = pd.Series(False, index=df.index)
+
+    reopened_mask = status_text.str.contains(r"re-?opened", regex=True, na=False)
+    if reopen_col:
+        reopen_num = pd.to_numeric(df[reopen_col], errors="coerce").fillna(0)
+        reopened_mask = reopened_mask | (reopen_num > 0)
+
+    return {
+        "redundant": int(redundant_mask.sum()),
+        "insufficient": int(insufficient_mask.sum()),
+        "sufficient_followup": int(sufficient_followup_mask.sum()),
+        "unassigned": int(unassigned_mask.sum()),
+        "reopened": int(reopened_mask.sum()),
+    }
+
+
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
+df = load_tickets()
+
+# ── KPI Snapshot ──────────────────────────────────────────────────────────────
+kpis = _compute_ticket_kpis(df)
+st.subheader("KPI Snapshot")
+k1, k2, k3, k4, k5 = st.columns(5)
+k1.metric("Redundant Tickets", kpis["redundant"])
+k2.metric("Insufficient Information", kpis["insufficient"])
+k3.metric("Sufficient but Needs Follow-up", kpis["sufficient_followup"])
+k4.metric("Unassigned Tickets", kpis["unassigned"])
+k5.metric("Reopened Tickets", kpis["reopened"])
+st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tab2, tab3 = st.tabs(["➕ Submit New Ticket", "📥 Upload Excel"])
