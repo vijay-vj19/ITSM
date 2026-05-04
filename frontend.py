@@ -24,7 +24,7 @@ st.caption("AI-powered ticket analysis and guided resolution")
 
 
 def _format_ticket_id_value(value):
-    """Normalize ticket ID numeric portions to 5 digits (e.g., INC-12 -> INC-00012)."""
+    """Normalize ticket ID numeric portions to realistic 5 digits (e.g., INC-12 -> INC-10012)."""
     if value is None:
         return value
     text = str(value).strip()
@@ -34,10 +34,16 @@ def _format_ticket_id_value(value):
     match = re.match(r"^(.*?)(\d+)$", text)
     if match:
         prefix, number = match.groups()
-        return f"{prefix}{int(number):05d}"
+        num = int(number)
+        if num < 10000:
+            num += 10000
+        return f"{prefix}{num}"
 
     if text.isdigit():
-        return f"{int(text):05d}"
+        num = int(text)
+        if num < 10000:
+            num += 10000
+        return str(num)
     return value
 
 
@@ -221,7 +227,7 @@ def _build_mock_dashboard_df(rows=120):
         is_reopened = status == "Reopened" or random.random() < 0.08
 
         data.append({
-            "Ticket ID": f"MOCK-{1000 + i:05d}",
+            "Ticket ID": f"MOCK-{10000 + i}",
             "Category": random.choice(categories),
             "Status": status,
             "Priority": random.choice(priorities),
@@ -234,13 +240,6 @@ def _build_mock_dashboard_df(rows=120):
         })
 
     return pd.DataFrame(data)
-
-
-def _fmt_count(value):
-    """Format numeric counts as 5-digit values for dashboard display."""
-    return f"{int(value):05d}"
-
-
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
@@ -280,12 +279,12 @@ st.markdown(_KPI_CSS, unsafe_allow_html=True)
 
 st.markdown(f"""
 <div class="kpi-row">
-    <div class="kpi-box"><div class="kpi-val kpi-white">{_fmt_count(kpis['total'])}</div><div class="kpi-lbl">Total Tickets</div></div>
-    <div class="kpi-box"><div class="kpi-val kpi-red">{_fmt_count(kpis['open'])}</div><div class="kpi-lbl">Open</div></div>
-    <div class="kpi-box"><div class="kpi-val kpi-red">{_fmt_count(kpis['duplicate'])}</div><div class="kpi-lbl">Duplicate Tickets</div></div>
-    <div class="kpi-box"><div class="kpi-val kpi-amber">{_fmt_count(kpis['insufficient'])}</div><div class="kpi-lbl">Insufficient Info</div></div>
-    <div class="kpi-box"><div class="kpi-val kpi-red">{_fmt_count(kpis['unassigned'])}</div><div class="kpi-lbl">Unassigned</div></div>
-    <div class="kpi-box"><div class="kpi-val kpi-red">{_fmt_count(kpis['reopened'])}</div><div class="kpi-lbl">Reopened</div></div>
+    <div class="kpi-box"><div class="kpi-val kpi-white">{kpis['total']}</div><div class="kpi-lbl">Total Tickets</div></div>
+    <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['open']}</div><div class="kpi-lbl">Open</div></div>
+    <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['duplicate']}</div><div class="kpi-lbl">Duplicate Tickets</div></div>
+    <div class="kpi-box"><div class="kpi-val kpi-amber">{kpis['insufficient']}</div><div class="kpi-lbl">Insufficient Info</div></div>
+    <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['unassigned']}</div><div class="kpi-lbl">Unassigned</div></div>
+    <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['reopened']}</div><div class="kpi-lbl">Reopened</div></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -302,7 +301,7 @@ with _chart_r1c1:
         .mark_bar(cornerRadiusEnd=4, color="#E05252")
         .encode(
             y=alt.Y("Category:N", sort="-x", title="Category", axis=alt.Axis(labelColor="#aaa", labelFontSize=11)),
-            x=alt.X("Count:Q", title="Value", axis=alt.Axis(labelColor="#666", grid=False)),
+            x=alt.X("Count:Q", title="Count", axis=alt.Axis(labelColor="#666", grid=False)),
             tooltip=["Category", "Count"],
         )
         .configure_view(strokeWidth=0)
@@ -373,7 +372,7 @@ with _chart_r2c1:
         .mark_bar(cornerRadiusEnd=4)
         .encode(
             x=alt.X("Status:N", sort="-y", title="Status", axis=alt.Axis(labelColor="#aaa", labelFontSize=11)),
-            y=alt.Y("Count:Q", title="Value", axis=alt.Axis(labelColor="#666", grid=True, gridColor="#2a2a3e")),
+            y=alt.Y("Count:Q", title="Count", axis=alt.Axis(labelColor="#666", grid=True, gridColor="#2a2a3e")),
             color=alt.Color("Status:N", scale=alt.Scale(
                 domain=list(_status_colors.keys()), range=list(_status_colors.values())
             ), legend=None),
@@ -403,8 +402,8 @@ with _chart_r2c2:
         alt.Chart(_qual_df)
         .mark_point(filled=True, opacity=0.85)
         .encode(
-            x=alt.X("Pct:Q", title="X Value (Percentage %)", axis=alt.Axis(labelColor="#aaa", grid=False)),
-            y=alt.Y("Count:Q", title="Y Value (Count)", axis=alt.Axis(labelColor="#aaa", gridColor="#2a2a3e")),
+            x=alt.X("Pct:Q", title="Pct", axis=alt.Axis(labelColor="#aaa", grid=False)),
+            y=alt.Y("Count:Q", title="Count", axis=alt.Axis(labelColor="#aaa", gridColor="#2a2a3e")),
             size=alt.Size("Count:Q", scale=alt.Scale(range=[300, 2500]), legend=None),
             color=alt.Color("Type:N", scale=alt.Scale(
                 domain=list(_qual_colors.keys()), range=list(_qual_colors.values())
@@ -426,7 +425,7 @@ trend_df = (
 trend_df["Raised On"] = pd.to_datetime(trend_df["Raised On"])
 _trend_area = alt.Chart(trend_df).mark_area(opacity=0.2, color="#E05252").encode(
     x=alt.X("Raised On:T", title="Date", axis=alt.Axis(labelColor="#aaa", grid=False)),
-    y=alt.Y("Tickets:Q", title="Value", axis=alt.Axis(labelColor="#666", gridColor="#2a2a3e")),
+    y=alt.Y("Tickets:Q", title="Tickets", axis=alt.Axis(labelColor="#666", gridColor="#2a2a3e")),
     tooltip=[alt.Tooltip("Raised On:T", title="Date"), alt.Tooltip("Tickets:Q", title="Tickets")],
 )
 _trend_line = alt.Chart(trend_df).mark_line(color="#E05252", strokeWidth=2.5).encode(
