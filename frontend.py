@@ -434,26 +434,71 @@ with _chart_r2c2:
     st.altair_chart(_bubble, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ── Row 3: Daily trend full-width ─────────────────────────────────────────────
-st.markdown('<div class="chart-card"><h5>Daily Ticket Trend (Last 30 Days)</h5>', unsafe_allow_html=True)
-trend_df = (
-    df.groupby("Raised On").size().rename("Tickets").reset_index().sort_values("Raised On")
+# ── Row 3: Daily trend full-width (stacked bars by Priority + 7-day rolling avg) ──
+st.markdown('<div class="chart-card"><h5>Daily Ticket Trend by Priority (Last 30 Days)</h5>', unsafe_allow_html=True)
+
+_trend_pri_df = (
+    df.groupby(["Raised On", "Priority"])
+    .size()
+    .rename("Tickets")
+    .reset_index()
+    .sort_values("Raised On")
 )
-trend_df["Raised On"] = pd.to_datetime(trend_df["Raised On"])
-_trend_area = alt.Chart(trend_df).mark_area(opacity=0.2, color="#E05252").encode(
-    x=alt.X("Raised On:T", title="Date", axis=alt.Axis(labelColor="#aaa", grid=False)),
-    y=alt.Y("Tickets:Q", title="Tickets", axis=alt.Axis(labelColor="#666", gridColor="#2a2a3e")),
-    tooltip=[alt.Tooltip("Raised On:T", title="Date"), alt.Tooltip("Tickets:Q", title="Tickets")],
+_trend_pri_df["Raised On"] = pd.to_datetime(_trend_pri_df["Raised On"])
+
+# 7-day rolling average on total daily tickets
+_daily_total = (
+    _trend_pri_df.groupby("Raised On")["Tickets"]
+    .sum()
+    .reset_index()
+    .sort_values("Raised On")
 )
-_trend_line = alt.Chart(trend_df).mark_line(color="#E05252", strokeWidth=2.5).encode(
-    x="Raised On:T",
-    y="Tickets:Q",
+_daily_total["Rolling Avg"] = _daily_total["Tickets"].rolling(7, min_periods=1).mean().round(1)
+
+_pri_colors_trend = {
+    "P1 - Critical": "#E05252",
+    "P2 - High":     "#F3A712",
+    "P3 - Medium":   "#4C78A8",
+    "P4 - Low":      "#2A9D8F",
+}
+
+_stacked_bars = (
+    alt.Chart(_trend_pri_df)
+    .mark_bar(opacity=0.85)
+    .encode(
+        x=alt.X("Raised On:T", title="Date", axis=alt.Axis(labelColor="#aaa", grid=False, format="%b %d")),
+        y=alt.Y("Tickets:Q", title="Tickets", stack="zero", axis=alt.Axis(labelColor="#aaa", gridColor="#2a2a3e")),
+        color=alt.Color(
+            "Priority:N",
+            scale=alt.Scale(domain=list(_pri_colors_trend.keys()), range=list(_pri_colors_trend.values())),
+            legend=alt.Legend(title="Priority", labelColor="#ccc", labelFontSize=11, orient="top"),
+        ),
+        tooltip=[
+            alt.Tooltip("Raised On:T", title="Date", format="%b %d"),
+            "Priority",
+            alt.Tooltip("Tickets:Q", title="Tickets"),
+        ],
+    )
 )
+
+_rolling_line = (
+    alt.Chart(_daily_total)
+    .mark_line(color="#ffffff", strokeWidth=2, strokeDash=[4, 3], opacity=0.7)
+    .encode(
+        x=alt.X("Raised On:T"),
+        y=alt.Y("Rolling Avg:Q"),
+        tooltip=[
+            alt.Tooltip("Raised On:T", title="Date", format="%b %d"),
+            alt.Tooltip("Rolling Avg:Q", title="7-Day Avg", format=".0f"),
+        ],
+    )
+)
+
 st.altair_chart(
-    (_trend_area + _trend_line)
+    (_stacked_bars + _rolling_line)
     .configure_view(strokeWidth=0)
     .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
-    .properties(height=240, background="transparent"),
+    .properties(height=280, background="transparent"),
     use_container_width=True,
 )
 st.markdown('</div>', unsafe_allow_html=True)
