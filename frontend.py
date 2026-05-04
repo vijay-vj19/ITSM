@@ -206,12 +206,14 @@ def _compute_ticket_kpis(df):
 
 
 @st.cache_data(show_spinner=False)
-def _build_mock_dashboard_df(rows=120000, cache_version="v2_100k"):
+def _build_mock_dashboard_df(rows=120000, cache_version="v3_weighted"):
     """Create mock tickets for demo dashboard visuals and KPIs."""
     categories = [
         "Network & Connectivity", "Hardware & Peripherals", "Software & Applications",
         "Email & Communication", "Security & Access", "IT Service Request", "Other"
     ]
+    # Unequal weights so bar chart shows clear volume differences
+    category_weights = [0.28, 0.08, 0.24, 0.10, 0.05, 0.18, 0.07]
     statuses = ["Open", "In Progress", "Resolved", "Reopened"]
     priorities = ["P1 - Critical", "P2 - High", "P3 - Medium", "P4 - Low"]
 
@@ -228,7 +230,7 @@ def _build_mock_dashboard_df(rows=120000, cache_version="v2_100k"):
 
         data.append({
             "Ticket ID": f"MOCK-{100000 + i}",
-            "Category": random.choice(categories),
+            "Category": random.choices(categories, weights=category_weights, k=1)[0],
             "Status": status,
             "Priority": random.choice(priorities),
             "Raised On": opened_on.isoformat(),
@@ -243,7 +245,7 @@ def _build_mock_dashboard_df(rows=120000, cache_version="v2_100k"):
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
-df = _build_mock_dashboard_df(rows=120000, cache_version="v2_100k")
+df = _build_mock_dashboard_df(rows=120000, cache_version="v3_weighted")
 
 # ── KPI Snapshot ──────────────────────────────────────────────────────────────
 kpis = {
