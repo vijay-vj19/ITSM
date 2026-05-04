@@ -294,11 +294,13 @@ with _chart_r1c2:
     _pri_df["Color"] = _pri_df["Priority"].map(_pri_colors).fillna("#888")
     _pri_pct = _pri_df.copy()
     _pri_pct["Percentage"] = (_pri_pct["Count"] / _pri_pct["Count"].sum() * 100).round(1)
+    _hover = alt.selection_point(on="pointerover", empty=False)
     _donut = (
         alt.Chart(_pri_pct)
-        .mark_arc(innerRadius=65, outerRadius=110)
+        .mark_arc(innerRadius=65)
         .encode(
             theta=alt.Theta("Count:Q"),
+            radius=alt.condition(_hover, alt.value(125), alt.value(110)),
             color=alt.Color(
                 "Priority:N",
                 scale=alt.Scale(domain=list(_pri_colors.keys()), range=list(_pri_colors.values())),
@@ -306,6 +308,7 @@ with _chart_r1c2:
             ),
             tooltip=["Priority", "Count", alt.Tooltip("Percentage:Q", format=".1f", title="% Share")],
         )
+        .add_params(_hover)
         .configure_view(strokeWidth=0)
         .properties(height=300, background="transparent")
     )
