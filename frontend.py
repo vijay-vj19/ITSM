@@ -294,20 +294,35 @@ with _chart_r1c2:
     _pri_df["Color"] = _pri_df["Priority"].map(_pri_colors).fillna("#888")
     _pri_pct = _pri_df.copy()
     _pri_pct["Percentage"] = (_pri_pct["Count"] / _pri_pct["Count"].sum() * 100).round(1)
-    _hover = alt.selection_point(on="pointerover", empty=False)
-    _donut = (
+    _hover = alt.selection_point(fields=["Priority"], on="pointerover", empty=False, clear="pointerout")
+
+    _donut_base = alt.Chart(_pri_pct).mark_arc(innerRadius=65, outerRadius=110).encode(
+        theta=alt.Theta("Count:Q"),
+        color=alt.Color(
+            "Priority:N",
+            scale=alt.Scale(domain=list(_pri_colors.keys()), range=list(_pri_colors.values())),
+            legend=alt.Legend(title=None, labelColor="#ccc", labelFontSize=11),
+        ),
+        tooltip=["Priority", "Count", alt.Tooltip("Percentage:Q", format=".1f", title="% Share")],
+    )
+
+    # Layer a larger slice only for hovered segment to create an expand-on-hover effect.
+    _donut_hover = (
         alt.Chart(_pri_pct)
-        .mark_arc(innerRadius=65)
+        .mark_arc(innerRadius=65, outerRadius=125, stroke="#ffffff", strokeWidth=1.0)
         .encode(
             theta=alt.Theta("Count:Q"),
-            radius=alt.condition(_hover, alt.value(125), alt.value(110)),
             color=alt.Color(
                 "Priority:N",
                 scale=alt.Scale(domain=list(_pri_colors.keys()), range=list(_pri_colors.values())),
-                legend=alt.Legend(title=None, labelColor="#ccc", labelFontSize=11),
+                legend=None,
             ),
-            tooltip=["Priority", "Count", alt.Tooltip("Percentage:Q", format=".1f", title="% Share")],
         )
+        .transform_filter(_hover)
+    )
+
+    _donut = (
+        (_donut_base + _donut_hover)
         .add_params(_hover)
         .configure_view(strokeWidth=0)
         .properties(height=300, background="transparent")
