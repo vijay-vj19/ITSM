@@ -227,7 +227,7 @@ def _build_mock_dashboard_df(rows=120):
         is_reopened = status == "Reopened" or random.random() < 0.08
 
         data.append({
-            "Ticket ID": f"MOCK-{10000 + i}",
+            "Ticket ID": f"MOCK-{100000 + i}",
             "Category": random.choice(categories),
             "Status": status,
             "Priority": random.choice(priorities),
