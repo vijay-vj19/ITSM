@@ -306,7 +306,7 @@ with _chart_r1c2:
         tooltip=["Priority", "Count", alt.Tooltip("Percentage:Q", format=".1f", title="% Share")],
     )
 
-    # Layer a larger slice only for hovered segment to create an expand-on-hover effect.
+    # Keep the same stack as base and show only hovered slice in the larger layer.
     _donut_hover = (
         alt.Chart(_pri_pct)
         .mark_arc(innerRadius=65, outerRadius=125, stroke="#ffffff", strokeWidth=1.0)
@@ -317,8 +317,8 @@ with _chart_r1c2:
                 scale=alt.Scale(domain=list(_pri_colors.keys()), range=list(_pri_colors.values())),
                 legend=None,
             ),
+            opacity=alt.condition(_hover, alt.value(1), alt.value(0)),
         )
-        .transform_filter(_hover)
     )
 
     _donut = (
