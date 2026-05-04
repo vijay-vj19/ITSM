@@ -206,7 +206,7 @@ def _compute_ticket_kpis(df):
 
 
 @st.cache_data(show_spinner=False)
-def _build_mock_dashboard_df(rows=120):
+def _build_mock_dashboard_df(rows=120000, cache_version="v2_100k"):
     """Create mock tickets for demo dashboard visuals and KPIs."""
     categories = [
         "Network & Connectivity", "Hardware & Peripherals", "Software & Applications",
@@ -243,7 +243,7 @@ def _build_mock_dashboard_df(rows=120):
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
-df = _build_mock_dashboard_df()
+df = _build_mock_dashboard_df(rows=120000, cache_version="v2_100k")
 
 # ── KPI Snapshot ──────────────────────────────────────────────────────────────
 kpis = {
