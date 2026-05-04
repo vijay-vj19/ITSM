@@ -206,7 +206,7 @@ def _compute_ticket_kpis(df):
 
 
 @st.cache_data(show_spinner=False)
-def _build_mock_dashboard_df(rows=120000, cache_version="v3_weighted"):
+def _build_mock_dashboard_df(rows=120000, cache_version="v4_trend"):
     """Create mock tickets for demo dashboard visuals and KPIs."""
     categories = [
         "Network & Connectivity", "Hardware & Peripherals", "Software & Applications",
@@ -218,9 +218,24 @@ def _build_mock_dashboard_df(rows=120000, cache_version="v3_weighted"):
     priorities = ["P1 - Critical", "P2 - High", "P3 - Medium", "P4 - Low"]
 
     today = datetime.date.today()
+
+    # Build per-day weights: weekdays heavier, weekends lighter, random spike days
+    day_offsets = list(range(30))
+    day_weights = []
+    for d in day_offsets:
+        date = today - datetime.timedelta(days=d)
+        # Mon=0 … Sun=6
+        dow = date.weekday()
+        base = 1.0 if dow < 5 else 0.35
+        spike = random.uniform(1.0, 3.5) if random.random() < 0.15 else 1.0
+        day_weights.append(base * spike)
+    total_w = sum(day_weights)
+    day_weights = [w / total_w for w in day_weights]
+
     data = []
     for i in range(rows):
-        opened_on = today - datetime.timedelta(days=random.randint(0, 29))
+        offset = random.choices(day_offsets, weights=day_weights, k=1)[0]
+        opened_on = today - datetime.timedelta(days=offset)
         status = random.choices(statuses, weights=[0.35, 0.3, 0.25, 0.1], k=1)[0]
         is_redundant = random.random() < 0.12
         is_insufficient = random.random() < 0.2
@@ -245,7 +260,7 @@ def _build_mock_dashboard_df(rows=120000, cache_version="v3_weighted"):
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
-df = _build_mock_dashboard_df(rows=120000, cache_version="v3_weighted")
+df = _build_mock_dashboard_df(rows=120000, cache_version="v4_trend")
 
 # ── KPI Snapshot ──────────────────────────────────────────────────────────────
 kpis = {
