@@ -434,51 +434,31 @@ with _chart_r2c2:
     st.altair_chart(_bubble, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ── Row 3: Calendar heatmap – ticket volume per day ───────────────────────────
-st.markdown('<div class="chart-card"><h5>Daily Ticket Volume Heatmap (Last 30 Days)</h5>', unsafe_allow_html=True)
+# ── Row 3: Daily ticket trend – simple line chart ─────────────────────────────
+st.markdown('<div class="chart-card"><h5>Daily Ticket Trend (Last 30 Days)</h5>', unsafe_allow_html=True)
 
-_heat_df = (
-    df.groupby("Raised On").size().rename("Tickets").reset_index()
+_trend_df = (
+    df.groupby("Raised On").size().rename("Tickets").reset_index().sort_values("Raised On")
 )
-_heat_df["Raised On"] = pd.to_datetime(_heat_df["Raised On"])
-_heat_df["DayOfWeek"] = _heat_df["Raised On"].dt.strftime("%a")   # Mon … Sun
-_heat_df["WeekNum"]   = _heat_df["Raised On"].dt.isocalendar().week.astype(int).astype(str)
-_heat_df["Label"]     = _heat_df["Raised On"].dt.strftime("%b %d")
+_trend_df["Raised On"] = pd.to_datetime(_trend_df["Raised On"])
 
-_dow_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-_heatmap = (
-    alt.Chart(_heat_df)
-    .mark_rect(cornerRadius=4)
+_trend_chart = (
+    alt.Chart(_trend_df)
+    .mark_line(color="#E05252", strokeWidth=2.5, point=alt.OverlayMarkDef(color="#E05252", size=40))
     .encode(
-        x=alt.X(
-            "DayOfWeek:O",
-            sort=_dow_order,
-            title="Day of Week",
-            axis=alt.Axis(labelColor="#aaa", labelFontSize=12, domainColor="#2a2a3e", tickColor="#2a2a3e"),
-        ),
-        y=alt.Y(
-            "WeekNum:O",
-            sort="ascending",
-            title="Week",
-            axis=alt.Axis(labelColor="#aaa", labelFontSize=11, domainColor="#2a2a3e", tickColor="#2a2a3e"),
-        ),
-        color=alt.Color(
-            "Tickets:Q",
-            scale=alt.Scale(scheme="reds"),
-            legend=alt.Legend(title="Tickets", labelColor="#ccc", labelFontSize=10),
-        ),
+        x=alt.X("Raised On:T", title="Date", axis=alt.Axis(labelColor="#aaa", grid=False, format="%b %d")),
+        y=alt.Y("Tickets:Q", title="Tickets", axis=alt.Axis(labelColor="#aaa", gridColor="#2a2a3e")),
         tooltip=[
-            alt.Tooltip("Label:N", title="Date"),
-            alt.Tooltip("DayOfWeek:O", title="Day"),
+            alt.Tooltip("Raised On:T", title="Date", format="%b %d"),
             alt.Tooltip("Tickets:Q", title="Tickets"),
         ],
     )
     .configure_view(strokeWidth=0)
-    .properties(height=230, background="transparent")
+    .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
+    .properties(height=250, background="transparent")
 )
 
-st.altair_chart(_heatmap, use_container_width=True)
+st.altair_chart(_trend_chart, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
