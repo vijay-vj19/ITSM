@@ -280,8 +280,94 @@ trend_line = alt.Chart(trend_df).mark_line(color="#0B6E4F", strokeWidth=3).encod
 st.altair_chart((trend_area + trend_line).properties(height=300), use_container_width=True)
 st.divider()
 
-# ── Upload Excel and Analyse ───────────────────────────────────────────────────
-st.subheader("Upload Ticket Excel File")
+# ── Source Systems ─────────────────────────────────────────────────────────────
+st.subheader("Source Systems")
+st.caption("Select a source system to connect and analyse ticket data.")
+
+_CARD_CSS = """
+<style>
+.src-card {
+    background: #1e1e2e;
+    border: 1px solid #2e2e4e;
+    border-radius: 12px;
+    padding: 24px 20px 20px 20px;
+    min-height: 160px;
+    margin-bottom: 8px;
+}
+.src-card h4 { color: #ffffff; margin: 0 0 8px 0; font-size: 1.05rem; }
+.src-card p  { color: #a0a0b8; font-size: 0.82rem; margin: 0; line-height: 1.5; }
+</style>
+"""
+st.markdown(_CARD_CSS, unsafe_allow_html=True)
+
+_SOURCES = [
+    {
+        "key": "mcp",
+        "label": "MCP",
+        "description": "Connect to the Model Context Protocol server to stream live ticket context and structured tool outputs.",
+    },
+    {
+        "key": "api",
+        "label": "API",
+        "description": "Pull tickets directly from your ITSM REST API endpoint using bearer token authentication.",
+    },
+    {
+        "key": "knowledge_base",
+        "label": "Knowledge Base",
+        "description": "Upload an Excel file of tickets and run AI-powered triage and resolution analysis row by row.",
+    },
+    {
+        "key": "ivr",
+        "label": "IVR",
+        "description": "Ingest call transcripts from your Interactive Voice Response system for automated ticket creation.",
+    },
+    {
+        "key": "iva",
+        "label": "IVA",
+        "description": "Analyse conversations from your Intelligent Virtual Assistant to surface recurring issues and gaps.",
+    },
+]
+
+# Render cards in rows of 3
+_cols_row1 = st.columns(3)
+_cols_row2 = st.columns([1, 1, 2])   # IVR and IVA left-aligned, empty right
+
+for _idx, _src in enumerate(_SOURCES):
+    _col = _cols_row1[_idx] if _idx < 3 else _cols_row2[_idx - 3]
+    with _col:
+        st.markdown(
+            f'<div class="src-card"><h4>{_src["label"]}</h4><p>{_src["description"]}</p></div>',
+            unsafe_allow_html=True,
+        )
+        _btn_label = (
+            "Open Knowledge Base"
+            if _src["key"] == "knowledge_base"
+            else f"Connect {_src['label']}"
+        )
+        if st.button(_btn_label, key=f"src_btn_{_src['key']}", use_container_width=True):
+            st.session_state["selected_source"] = _src["key"]
+
+_selected_source = st.session_state.get("selected_source")
+
+if _selected_source and _selected_source != "knowledge_base":
+    _src_label = next(s["label"] for s in _SOURCES if s["key"] == _selected_source)
+    st.divider()
+    st.success(f"**{_src_label}** source connected (demo mode). Live data ingestion will appear here.")
+    st.info(
+        f"In production, tickets ingested from **{_src_label}** will be displayed in an interactive "
+        f"table and can be selected for AI triage and resolution analysis — identical to the Knowledge Base flow."
+    )
+
+st.divider()
+
+# ── Knowledge Base – Upload Excel and Analyse ──────────────────────────────────
+if _selected_source != "knowledge_base":
+    st.markdown(
+        "_Click **Open Knowledge Base** above to upload an Excel file and run AI analysis on your tickets._"
+    )
+    st.stop()
+
+st.subheader("Knowledge Base – Upload Ticket Excel File")
 st.caption("Upload an .xlsx/.xls file, then click a row in the preview table to run AI analysis.")
 
 uploaded_file = st.file_uploader("Add Excel File", type=["xlsx", "xls"])
