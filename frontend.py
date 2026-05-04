@@ -218,66 +218,182 @@ df = _build_mock_dashboard_df()
 
 # ── KPI Snapshot ──────────────────────────────────────────────────────────────
 kpis = {
+    "total": len(df),
+    "open": int((df["Status"] == "Open").sum()),
     "redundant": int(df["is_redundant"].sum()),
     "insufficient": int(df["is_insufficient"].sum()),
-    "sufficient_followup": int(((~df["is_insufficient"]) & df["needs_followup"]).sum()),
     "unassigned": int(df["is_unassigned"].sum()),
     "reopened": int(df["is_reopened"].sum()),
 }
-st.subheader("KPI Snapshot")
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Redundant Tickets", kpis["redundant"])
-k2.metric("Insufficient Information", kpis["insufficient"])
-k3.metric("Sufficient but Needs Follow-up", kpis["sufficient_followup"])
-k4.metric("Unassigned Tickets", kpis["unassigned"])
-k5.metric("Reopened Tickets", kpis["reopened"])
+
+_KPI_CSS = """
+<style>
+.kpi-row { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+.kpi-box {
+    flex:1; min-width:110px;
+    background:#161622; border:1px solid #2a2a3e; border-radius:10px;
+    padding:18px 14px 14px 14px; text-align:center;
+}
+.kpi-val { font-size:2rem; font-weight:700; line-height:1; }
+.kpi-lbl { font-size:0.72rem; color:#888; margin-top:6px; text-transform:uppercase; letter-spacing:.05em; }
+.kpi-red   { color:#E05252; }
+.kpi-white { color:#ffffff; }
+.kpi-amber { color:#F3A712; }
+.chart-card {
+    background:#161622; border:1px solid #2a2a3e; border-radius:10px;
+    padding:18px 16px 12px 16px; margin-bottom:16px;
+}
+.chart-card h5 { color:#e0e0e0; margin:0 0 14px 0; font-size:0.95rem; }
+</style>
+"""
+st.markdown(_KPI_CSS, unsafe_allow_html=True)
+
+st.markdown(f"""
+<div class="kpi-row">
+  <div class="kpi-box"><div class="kpi-val kpi-white">{kpis['total']}</div><div class="kpi-lbl">Total Tickets</div></div>
+  <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['open']}</div><div class="kpi-lbl">Open</div></div>
+  <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['redundant']}</div><div class="kpi-lbl">Redundant</div></div>
+  <div class="kpi-box"><div class="kpi-val kpi-amber">{kpis['insufficient']}</div><div class="kpi-lbl">Insufficient Info</div></div>
+  <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['unassigned']}</div><div class="kpi-lbl">Unassigned</div></div>
+  <div class="kpi-box"><div class="kpi-val kpi-red">{kpis['reopened']}</div><div class="kpi-lbl">Reopened</div></div>
+</div>
+""", unsafe_allow_html=True)
 
 st.caption("Demo dashboard uses generated mock data for presentation only.")
 
-chart_col1, chart_col2 = st.columns(2)
-with chart_col1:
-    st.markdown("#### Ticket Quality Mix")
-    kpi_chart_df = pd.DataFrame([
-        {"KPI": "Redundant", "Count": kpis["redundant"], "Color": "#E4572E"},
-        {"KPI": "Insufficient Info", "Count": kpis["insufficient"], "Color": "#F3A712"},
-        {"KPI": "Needs Follow-up", "Count": kpis["sufficient_followup"], "Color": "#4C78A8"},
-        {"KPI": "Unassigned", "Count": kpis["unassigned"], "Color": "#7A5195"},
-        {"KPI": "Reopened", "Count": kpis["reopened"], "Color": "#D45087"},
+# ── Row 1: Category bar + AI Decision donut ───────────────────────────────────
+_chart_r1c1, _chart_r1c2 = st.columns(2)
+
+with _chart_r1c1:
+    st.markdown('<div class="chart-card"><h5>Tickets with Highest Volume by Category</h5>', unsafe_allow_html=True)
+    _cat_df = df["Category"].value_counts().rename_axis("Category").reset_index(name="Count")
+    _cat_bar = (
+        alt.Chart(_cat_df)
+        .mark_bar(cornerRadiusEnd=4, color="#E05252")
+        .encode(
+            y=alt.Y("Category:N", sort="-x", title=None, axis=alt.Axis(labelColor="#aaa", labelFontSize=11)),
+            x=alt.X("Count:Q", title=None, axis=alt.Axis(labelColor="#666", grid=False)),
+            tooltip=["Category", "Count"],
+        )
+        .configure_view(strokeWidth=0)
+        .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
+        .properties(height=300, background="transparent")
+    )
+    st.altair_chart(_cat_bar, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with _chart_r1c2:
+    st.markdown('<div class="chart-card"><h5>AI Priority Decision Breakdown</h5>', unsafe_allow_html=True)
+    _pri_df = df["Priority"].value_counts().rename_axis("Priority").reset_index(name="Count")
+    _pri_colors = {
+        "P1 - Critical": "#E05252",
+        "P2 - High": "#F3A712",
+        "P3 - Medium": "#4C78A8",
+        "P4 - Low": "#2A9D8F",
+    }
+    _pri_df["Color"] = _pri_df["Priority"].map(_pri_colors).fillna("#888")
+    _pri_pct = _pri_df.copy()
+    _pri_pct["Percentage"] = (_pri_pct["Count"] / _pri_pct["Count"].sum() * 100).round(1)
+    _donut = (
+        alt.Chart(_pri_pct)
+        .mark_arc(innerRadius=65, outerRadius=110)
+        .encode(
+            theta=alt.Theta("Count:Q"),
+            color=alt.Color(
+                "Priority:N",
+                scale=alt.Scale(domain=list(_pri_colors.keys()), range=list(_pri_colors.values())),
+                legend=alt.Legend(title=None, labelColor="#ccc", labelFontSize=11),
+            ),
+            tooltip=["Priority", "Count", alt.Tooltip("Percentage:Q", format=".1f", title="% Share")],
+        )
+        .configure_view(strokeWidth=0)
+        .properties(height=300, background="transparent")
+    )
+    st.altair_chart(_donut, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ── Row 2: Status distribution bar + Ticket quality bubble ────────────────────
+_chart_r2c1, _chart_r2c2 = st.columns(2)
+
+with _chart_r2c1:
+    st.markdown('<div class="chart-card"><h5>Ticket Status Distribution</h5>', unsafe_allow_html=True)
+    _status_df = df["Status"].value_counts().rename_axis("Status").reset_index(name="Count")
+    _status_colors = {"Open": "#E05252", "In Progress": "#F3A712", "Resolved": "#2A9D8F", "Reopened": "#D45087"}
+    _status_df["Color"] = _status_df["Status"].map(_status_colors).fillna("#888")
+    _status_bar = (
+        alt.Chart(_status_df)
+        .mark_bar(cornerRadiusEnd=4)
+        .encode(
+            x=alt.X("Status:N", sort="-y", title=None, axis=alt.Axis(labelColor="#aaa", labelFontSize=11)),
+            y=alt.Y("Count:Q", title=None, axis=alt.Axis(labelColor="#666", grid=True, gridColor="#2a2a3e")),
+            color=alt.Color("Status:N", scale=alt.Scale(
+                domain=list(_status_colors.keys()), range=list(_status_colors.values())
+            ), legend=None),
+            tooltip=["Status", "Count"],
+        )
+        .configure_view(strokeWidth=0)
+        .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
+        .properties(height=280, background="transparent")
+    )
+    st.altair_chart(_status_bar, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with _chart_r2c2:
+    st.markdown('<div class="chart-card"><h5>Ticket Quality Type Distribution</h5>', unsafe_allow_html=True)
+    _qual_df = pd.DataFrame([
+        {"Type": "Redundant",        "Count": kpis["redundant"],    "Pct": round(kpis["redundant"]    / kpis["total"] * 100, 1)},
+        {"Type": "Insufficient Info", "Count": kpis["insufficient"], "Pct": round(kpis["insufficient"] / kpis["total"] * 100, 1)},
+        {"Type": "Unassigned",        "Count": kpis["unassigned"],   "Pct": round(kpis["unassigned"]   / kpis["total"] * 100, 1)},
+        {"Type": "Reopened",          "Count": kpis["reopened"],     "Pct": round(kpis["reopened"]     / kpis["total"] * 100, 1)},
+        {"Type": "Normal",            "Count": kpis["open"],         "Pct": round(kpis["open"]         / kpis["total"] * 100, 1)},
     ])
+    _qual_colors = {
+        "Redundant": "#E05252", "Insufficient Info": "#F3A712",
+        "Unassigned": "#7A5195", "Reopened": "#D45087", "Normal": "#2A9D8F",
+    }
+    _bubble = (
+        alt.Chart(_qual_df)
+        .mark_point(filled=True, opacity=0.85)
+        .encode(
+            x=alt.X("Pct:Q", title="Percentage (%)", axis=alt.Axis(labelColor="#aaa", grid=False)),
+            y=alt.Y("Count:Q", title="Count", axis=alt.Axis(labelColor="#aaa", gridColor="#2a2a3e")),
+            size=alt.Size("Count:Q", scale=alt.Scale(range=[300, 2500]), legend=None),
+            color=alt.Color("Type:N", scale=alt.Scale(
+                domain=list(_qual_colors.keys()), range=list(_qual_colors.values())
+            ), legend=alt.Legend(title=None, labelColor="#ccc", labelFontSize=10, orient="bottom", columns=3)),
+            tooltip=["Type", "Count", alt.Tooltip("Pct:Q", format=".1f", title="% of Total")],
+        )
+        .configure_view(strokeWidth=0)
+        .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
+        .properties(height=280, background="transparent")
+    )
+    st.altair_chart(_bubble, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    quality_donut = alt.Chart(kpi_chart_df).mark_arc(innerRadius=70).encode(
-        theta=alt.Theta(field="Count", type="quantitative"),
-        color=alt.Color(field="KPI", type="nominal", scale=alt.Scale(domain=kpi_chart_df["KPI"].tolist(), range=kpi_chart_df["Color"].tolist()), legend=alt.Legend(title="KPI Type")),
-        tooltip=["KPI", "Count"],
-    ).properties(height=320)
-    st.altair_chart(quality_donut, use_container_width=True)
-
-with chart_col2:
-    st.markdown("#### Ticket Volume by Category")
-    category_chart_df = df["Category"].value_counts().rename_axis("Category").reset_index(name="Count")
-    category_bar = alt.Chart(category_chart_df).mark_bar(cornerRadiusEnd=4).encode(
-        y=alt.Y("Category:N", sort="-x", title="Category"),
-        x=alt.X("Count:Q", title="Number of Tickets"),
-        color=alt.Color("Count:Q", scale=alt.Scale(scheme="tealblues"), legend=None),
-        tooltip=["Category", "Count"],
-    ).properties(height=320)
-    st.altair_chart(category_bar, use_container_width=True)
-
-st.markdown("#### Daily Ticket Trend (Last 30 Days)")
+# ── Row 3: Daily trend full-width ─────────────────────────────────────────────
+st.markdown('<div class="chart-card"><h5>Daily Ticket Trend (Last 30 Days)</h5>', unsafe_allow_html=True)
 trend_df = (
     df.groupby("Raised On").size().rename("Tickets").reset_index().sort_values("Raised On")
 )
 trend_df["Raised On"] = pd.to_datetime(trend_df["Raised On"])
-trend_area = alt.Chart(trend_df).mark_area(opacity=0.35, color="#2A9D8F").encode(
-    x=alt.X("Raised On:T", title="Date"),
-    y=alt.Y("Tickets:Q", title="Tickets Raised"),
+_trend_area = alt.Chart(trend_df).mark_area(opacity=0.2, color="#E05252").encode(
+    x=alt.X("Raised On:T", title=None, axis=alt.Axis(labelColor="#aaa", grid=False)),
+    y=alt.Y("Tickets:Q", title=None, axis=alt.Axis(labelColor="#666", gridColor="#2a2a3e")),
     tooltip=[alt.Tooltip("Raised On:T", title="Date"), alt.Tooltip("Tickets:Q", title="Tickets")],
 )
-trend_line = alt.Chart(trend_df).mark_line(color="#0B6E4F", strokeWidth=3).encode(
+_trend_line = alt.Chart(trend_df).mark_line(color="#E05252", strokeWidth=2.5).encode(
     x="Raised On:T",
     y="Tickets:Q",
 )
-st.altair_chart((trend_area + trend_line).properties(height=300), use_container_width=True)
+st.altair_chart(
+    (_trend_area + _trend_line)
+    .configure_view(strokeWidth=0)
+    .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
+    .properties(height=240, background="transparent"),
+    use_container_width=True,
+)
+st.markdown('</div>', unsafe_allow_html=True)
+
 st.divider()
 
 # ── Source Systems ─────────────────────────────────────────────────────────────
