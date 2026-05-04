@@ -206,7 +206,7 @@ def _compute_ticket_kpis(df):
 
 
 @st.cache_data(show_spinner=False)
-def _build_mock_dashboard_df(rows=120000, cache_version="v4_trend"):
+def _build_mock_dashboard_df(rows=120000, cache_version="v5_low_dup"):
     """Create mock tickets for demo dashboard visuals and KPIs."""
     categories = [
         "Network & Connectivity", "Hardware & Peripherals", "Software & Applications",
@@ -237,11 +237,11 @@ def _build_mock_dashboard_df(rows=120000, cache_version="v4_trend"):
         offset = random.choices(day_offsets, weights=day_weights, k=1)[0]
         opened_on = today - datetime.timedelta(days=offset)
         status = random.choices(statuses, weights=[0.35, 0.3, 0.25, 0.1], k=1)[0]
-        is_redundant = random.random() < 0.12
+        is_redundant = random.random() < 0.03
         is_insufficient = random.random() < 0.2
         needs_followup = random.random() < 0.28
-        is_unassigned = random.random() < 0.16
-        is_reopened = status == "Reopened" or random.random() < 0.08
+        is_unassigned = random.random() < 0.04
+        is_reopened = status == "Reopened" or random.random() < 0.02
 
         data.append({
             "Ticket ID": f"MOCK-{100000 + i}",
@@ -260,7 +260,7 @@ def _build_mock_dashboard_df(rows=120000, cache_version="v4_trend"):
 
 # ── Load resources ────────────────────────────────────────────────────────────
 rails, client, chunks, embeddings = init()
-df = _build_mock_dashboard_df(rows=120000, cache_version="v4_trend")
+df = _build_mock_dashboard_df(rows=120000, cache_version="v5_low_dup")
 
 # ── KPI Snapshot ──────────────────────────────────────────────────────────────
 kpis = {
