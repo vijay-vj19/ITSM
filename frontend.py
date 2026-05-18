@@ -19,6 +19,7 @@ from app import init as _init, analyse_ticket, prioritize_ticket
 # Wrap with Streamlit cache so they only run once per session
 init = st.cache_resource(show_spinner="Loading AI models…")(_init)
 
+st.image(str(BASE_DIR / "Images" / "logo.jpg"), width=160)
 st.title("ITSM Ticket Assistant")
 st.caption("AI-powered ticket analysis and guided resolution")
 
