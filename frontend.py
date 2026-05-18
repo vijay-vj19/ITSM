@@ -24,7 +24,7 @@ with _col_logo:
     st.image(str(BASE_DIR / "Images" / "logo.jpg"), width=130)
 with _col_title:
     st.title("ITSM Ticket Assistant")
-    st.caption("AI-powered ticket analysis and guided resolution")
+    st.caption("AI-powered ticket analysis and guided resolution by Samarth Inc")
 
 
 def _format_ticket_id_value(value):
