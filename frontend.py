@@ -329,7 +329,7 @@ with _chart_r1c1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with _chart_r1c2:
-    st.markdown('<div class="chart-card"><h5>AI Priority Decision Breakdown</h5>', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     _pri_df = df["Priority"].value_counts().rename_axis("Priority").reset_index(name="Count")
     _pri_colors = {
         "P1 - Critical": "#E05252",
@@ -371,7 +371,7 @@ with _chart_r1c2:
         (_donut_base + _donut_hover)
         .add_params(_hover)
         .configure_view(strokeWidth=0)
-        .properties(height=300, background="transparent")
+        .properties(title="AI Priority Decision Breakdown",height=300, background="transparent")
     )
     st.altair_chart(_donut, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -380,7 +380,7 @@ with _chart_r1c2:
 _chart_r2c1, _chart_r2c2 = st.columns(2)
 
 with _chart_r2c1:
-    st.markdown('<div class="chart-card"><h5>Ticket Status Distribution</h5>', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     _status_df = df["Status"].value_counts().rename_axis("Status").reset_index(name="Count")
     _status_colors = {"Open": "#E05252", "In Progress": "#F3A712", "Resolved": "#2A9D8F", "Reopened": "#D45087"}
     _status_df["Color"] = _status_df["Status"].map(_status_colors).fillna("#888")
@@ -397,13 +397,13 @@ with _chart_r2c1:
         )
         .configure_view(strokeWidth=0)
         .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
-        .properties(height=280, background="transparent")
+        .properties(title="Ticket Status Distribution", height=280, background="transparent")
     )
     st.altair_chart(_status_bar, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 with _chart_r2c2:
-    st.markdown('<div class="chart-card"><h5>Ticket Quality Type Distribution</h5>', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     _qual_df = pd.DataFrame([
         {"Type": "Duplicate Tickets", "Count": kpis["duplicate"],    "Pct": round(kpis["duplicate"]    / kpis["total"] * 100, 1)},
         {"Type": "Insufficient Info", "Count": kpis["insufficient"], "Pct": round(kpis["insufficient"] / kpis["total"] * 100, 1)},
@@ -429,13 +429,13 @@ with _chart_r2c2:
         )
         .configure_view(strokeWidth=0)
         .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
-        .properties(height=280, background="transparent")
+        .properties(title="Ticket Quality Type Distribution", height=280, background="transparent")
     )
     st.altair_chart(_bubble, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Row 3: Daily ticket trend – simple line chart ─────────────────────────────
-st.markdown('<div class="chart-card"><h5>Daily Ticket Trend (Last 30 Days)</h5>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
 _trend_df = (
     df.groupby("Raised On").size().rename("Tickets").reset_index().sort_values("Raised On")
@@ -455,7 +455,7 @@ _trend_chart = (
     )
     .configure_view(strokeWidth=0)
     .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
-    .properties(height=250, background="transparent")
+    .properties(title="Daily Ticket Trend (Last 30 Days)", height=250, background="transparent")
 )
 
 st.altair_chart(_trend_chart, use_container_width=True)
