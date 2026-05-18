@@ -20,7 +20,7 @@ from app import init as _init, analyse_ticket, prioritize_ticket
 init = st.cache_resource(show_spinner="Loading AI models…")(_init)
 
 st.title("ITSM Ticket Assistant")
-st.caption("AI-powered ticket analysis and guided resolution by Samarth Inc")
+st.caption("AI-powered ticket analysis and guided resolution")
 
 
 def _format_ticket_id_value(value):
