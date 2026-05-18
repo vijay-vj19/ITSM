@@ -311,7 +311,7 @@ st.caption("Demo dashboard uses generated mock data for presentation only.")
 _chart_r1c1, _chart_r1c2 = st.columns(2)
 
 with _chart_r1c1:
-    st.markdown('<div class="chart-card"><h5>Tickets with Highest Volume by Category</h5>', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     _cat_df = df["Category"].value_counts().rename_axis("Category").reset_index(name="Count")
     _cat_bar = (
         alt.Chart(_cat_df)
