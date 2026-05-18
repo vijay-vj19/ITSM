@@ -323,7 +323,7 @@ with _chart_r1c1:
         )
         .configure_view(strokeWidth=0)
         .configure_axis(domainColor="#2a2a3e", tickColor="#2a2a3e")
-        .properties(height=300, background="transparent")
+        .properties(title="Tickets with Highest Volume by Category",height=300, background="transparent")
     )
     st.altair_chart(_cat_bar, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
